@@ -227,8 +227,7 @@ func (r *WorkspaceRepository) UpdateWorkspace(ctx context.Context, actor user.In
 	}
 
 	// get the WorkspaceKind referenced by this Workspace - required to evaluate its
-	// filterRules below. Any failure here (including the WorkspaceKind not existing)
-	// is a hard failure (root 500): we cannot evaluate filterRules without it.
+	// filterRules below.
 	workspaceKind := &kubefloworgv1beta1.WorkspaceKind{}
 	if err := r.client.Get(ctx, client.ObjectKey{Name: workspace.Spec.Kind}, workspaceKind); err != nil {
 		return nil, err
