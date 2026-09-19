@@ -281,7 +281,7 @@ func (r *WorkspaceRepository) UpdateWorkspace(ctx context.Context, actor user.In
 		return nil, err
 	}
 
-	// set audit annotations (UpdateObjectMetaForUpdate takes 3 arguments)
+	// set audit annotations
 	modelsCommon.UpdateObjectMetaForUpdate(&workspace.ObjectMeta, actor, now)
 
 	// TODO: if the update fails due to a kubernetes conflict, this implies our cache is stale.
