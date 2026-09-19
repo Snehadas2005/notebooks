@@ -316,8 +316,13 @@ func (r *WorkspaceRepository) enforceWorkspaceKindFilterRules(
 ) error {
 	result := filterrules.EvaluateWorkspaceKindFilterScopeRule(workspaceKind, namespaceLabels)
 
+   if result.Restrictions.Hide {
+       msg := fmt.Sprintf("workspace %s not allowed: workspace kind %q is hidden", action, workspaceKind.Name)
+       return &WorkspaceKindRestrictedError{Message: msg}
+   }
+
 	if result.Restrictions.Deny {
-		msg := fmt.Sprintf("workspace %s not allowed: workspace kind is restricted", action)
+		msg := fmt.Sprintf("workspace %s not allowed: workspace kind %q is restricted", action, workspaceKind.Name)
 		if result.Restrictions.DenyMessage != nil && result.Restrictions.DenyMessage.Text != "" {
 			msg = fmt.Sprintf("%s: %s", msg, result.Restrictions.DenyMessage.Text)
 		}
