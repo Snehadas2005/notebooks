@@ -48,6 +48,13 @@ var (
 	ErrWorkspaceRevisionConflict = fmt.Errorf("current workspace revision does not match request")
 )
 
+type wsMutationType string
+
+const (
+    wsMutationTypeCreate wsMutationType = "create"
+    wsMutationTypeUpdate wsMutationType = "update"
+)
+
 // WorkspaceKindRestrictedError indicates that a Workspace create/update was rejected
 // because the referenced WorkspaceKind itself is hidden or denied by a WORKSPACE_KIND-scoped
 // filterRule for the target namespace (as opposed to a specific imageConfig/podConfig
