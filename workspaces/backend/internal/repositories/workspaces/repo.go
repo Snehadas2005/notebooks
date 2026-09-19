@@ -182,7 +182,7 @@ func (r *WorkspaceRepository) CreateWorkspace(ctx context.Context, actor user.In
 		return nil, err
 	}
 
-	// set audit annotations (UpdateObjectMetaForCreate only takes 2 arguments)
+	// set audit annotations
 	modelsCommon.UpdateObjectMetaForCreate(&workspace.ObjectMeta, actor)
 
 	// create workspace
