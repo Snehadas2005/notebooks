@@ -310,16 +310,10 @@ func (r *WorkspaceRepository) resolveNamespaceLabels(ctx context.Context, namesp
 // engine support merged, but #1206 as written explicitly calls out IMAGE_CONFIG/POD_CONFIG-scoped `deny`.
 // Pending @andyatmiami confirming on the PR whether WORKSPACE_KIND-scope enforcement belongs in #1206 or a follow-up issue.
 func (r *WorkspaceRepository) enforceWorkspaceKindFilterRules(
-	ctx context.Context,
-	namespace string,
-	workspaceKind *kubefloworgv1beta1.WorkspaceKind,
-	action string,
+    workspaceKind *kubefloworgv1beta1.WorkspaceKind,
+    namespaceLabels map[string]string,
+    mutation wsMutationType,
 ) error {
-	namespaceLabels, err := r.resolveNamespaceLabels(ctx, namespace)
-	if err != nil {
-		return err
-	}
-
 	result := filterrules.EvaluateWorkspaceKindFilterScopeRule(workspaceKind, namespaceLabels)
 
 	if result.Restrictions.Deny {
