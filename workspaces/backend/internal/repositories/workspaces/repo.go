@@ -164,19 +164,24 @@ func (r *WorkspaceRepository) CreateWorkspace(ctx context.Context, actor user.In
 		return nil, err
 	}
 
+   // get namespace labels for filter rule enforcement checks
+   namespaceLabels, err := r.resolveNamespaceLabels(ctx, namespace)
+   if err != nil {
+       return nil, err
+   }
+
 	// reject the request (403) if the WorkspaceKind itself is denied by
 	// a WORKSPACE_KIND-scoped filterRule for this namespace.
-	if err := r.enforceWorkspaceKindFilterRules(ctx, namespace, workspaceKind, "create"); err != nil {
-		return nil, err
-	}
+   if err := r.enforceWorkspaceKindFilterRules(workspaceKind, namespaceLabels, wsMutationTypeCreate); err != nil {
+       return nil, err
+   }
 
 	// reject the request (422) if the selected imageConfig/podConfig is
 	// denied by a filterRule for this namespace. Both options are evaluated
 	// on create since both are being selected for the first time.
-	filterErrs, err := r.enforceOptionFilterRules(ctx, namespace, workspaceKind, workspaceCreate.PodTemplate.Options, true, true)
-	if err != nil {
-		return nil, err
-	}
+   var filterErrs field.ErrorList
+   filterErrs = append(filterErrs, r.enforceImageConfigFilterRule(workspaceKind, namespaceLabels, workspaceCreate.PodTemplate.Options)...)
+   filterErrs = append(filterErrs, r.enforcePodConfigFilterRule(workspaceKind, namespaceLabels, workspaceCreate.PodTemplate.Options)...)
 	if len(filterErrs) > 0 {
 		return nil, helper.NewInternalValidationError(filterErrs)
 	}
