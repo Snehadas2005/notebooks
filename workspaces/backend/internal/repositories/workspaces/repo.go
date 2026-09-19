@@ -333,62 +333,82 @@ func (r *WorkspaceRepository) enforceWorkspaceKindFilterRules(
 	return nil
 }
 
-// enforceOptionFilterRules evaluates IMAGE_CONFIG- and POD_CONFIG-scoped filterRules
-// for the selected imageConfig/podConfig, and returns a field.ErrorList describing
-// any option that a rule restricts via deny.
-func (r *WorkspaceRepository) enforceOptionFilterRules(
-	ctx context.Context,
-	namespace string,
-	workspaceKind *kubefloworgv1beta1.WorkspaceKind,
-	options models.PodTemplateOptionsMutate,
-	checkImageConfig, checkPodConfig bool,
-) (field.ErrorList, error) {
-	var errs field.ErrorList
+// enforceImageConfigFilterRule evaluates the WorkspaceKind's IMAGE_CONFIG-scoped filterRules
+// against the selected imageConfig value and returns any field errors describing restrictions
+// (hidden and/or denied) that apply. Both Hide and Deny can accumulate on the same field path.
+//
+// Returns nil (silent no-op) if imageConfigID does not match any value in the WorkspaceKind -
+// existence validation is handled downstream by NewWorkspaceFromWorkspaceCreateModel.
+func (r *WorkspaceRepository) enforceImageConfigFilterRule(
+    workspaceKind *kubefloworgv1beta1.WorkspaceKind,
+    evalCtx filterrules.EvalContext,
+    imageConfigID string,
+) field.ErrorList {
+    value := findImageConfigValue(workspaceKind, imageConfigID)
+    if value == nil {
+        return nil
+    }
 
-	namespaceLabels, err := r.resolveNamespaceLabels(ctx, namespace)
-	if err != nil {
-		return nil, err
-	}
+    result := filterrules.Evaluate(filterrules.EvalTarget{
+        Scope:  kubefloworgv1beta1.FilterRuleScopeImageConfig,
+        Labels: value.Spawner.Labels,
+    }, evalCtx)
 
-	evalCtx := filterrules.BuildEvalContextForImageAndPodCfg(workspaceKind, namespaceLabels, options.ImageConfig, options.PodConfig)
+    var errs field.ErrorList
+    imgPath := field.NewPath("spec", "podTemplate", "options", "imageConfig")
 
-	if checkPodConfig {
-		if value := findPodConfigValue(workspaceKind, options.PodConfig); value != nil {
-			result := filterrules.Evaluate(filterrules.EvalTarget{
-				Scope:  kubefloworgv1beta1.FilterRuleScopePodConfig,
-				Labels: value.Spawner.Labels,
-			}, evalCtx)
+    if result.Restrictions.Hide {
+        errs = append(errs, field.Forbidden(imgPath, fmt.Sprintf("not allowed: image config option %q is hidden", imageConfigID)))
+    }
 
-			podPath := field.NewPath("spec", "podTemplate", "options", "podConfig")
-			if result.Restrictions.Deny {
-				msg := "not allowed: pod config option is restricted"
-				if result.Restrictions.DenyMessage != nil && result.Restrictions.DenyMessage.Text != "" {
-					msg = fmt.Sprintf("%s: %s", msg, result.Restrictions.DenyMessage.Text)
-				}
-				errs = append(errs, field.Forbidden(podPath, msg))
-			}
-		}
-	}
+    if result.Restrictions.Deny {
+        msg := fmt.Sprintf("not allowed: image config option %q is restricted", imageConfigID)
+        if result.Restrictions.DenyMessage != nil && result.Restrictions.DenyMessage.Text != "" {
+            msg = fmt.Sprintf("%s: %s", msg, result.Restrictions.DenyMessage.Text)
+        }
+        errs = append(errs, field.Forbidden(imgPath, msg))
+    }
 
-	if checkImageConfig {
-		if value := findImageConfigValue(workspaceKind, options.ImageConfig); value != nil {
-			result := filterrules.Evaluate(filterrules.EvalTarget{
-				Scope:  kubefloworgv1beta1.FilterRuleScopeImageConfig,
-				Labels: value.Spawner.Labels,
-			}, evalCtx)
+    return errs
+}
 
-			imgPath := field.NewPath("spec", "podTemplate", "options", "imageConfig")
-			if result.Restrictions.Deny {
-				msg := "not allowed: image config option is restricted"
-				if result.Restrictions.DenyMessage != nil && result.Restrictions.DenyMessage.Text != "" {
-					msg = fmt.Sprintf("%s: %s", msg, result.Restrictions.DenyMessage.Text)
-				}
-				errs = append(errs, field.Forbidden(imgPath, msg))
-			}
-		}
-	}
+// enforcePodConfigFilterRule evaluates the WorkspaceKind's POD_CONFIG-scoped filterRules
+// against the selected podConfig value and returns any field errors describing restrictions
+// (hidden and/or denied) that apply. Both Hide and Deny can accumulate on the same field path.
+//
+// Returns nil (silent no-op) if podConfigID does not match any value in the WorkspaceKind -
+// existence validation is handled downstream by NewWorkspaceFromWorkspaceCreateModel.
+func (r *WorkspaceRepository) enforcePodConfigFilterRule(
+    workspaceKind *kubefloworgv1beta1.WorkspaceKind,
+    evalCtx filterrules.EvalContext,
+    podConfigID string,
+) field.ErrorList {
+    value := findPodConfigValue(workspaceKind, podConfigID)
+    if value == nil {
+        return nil
+    }
 
-	return errs, nil
+    result := filterrules.Evaluate(filterrules.EvalTarget{
+        Scope:  kubefloworgv1beta1.FilterRuleScopePodConfig,
+        Labels: value.Spawner.Labels,
+    }, evalCtx)
+
+    var errs field.ErrorList
+    podPath := field.NewPath("spec", "podTemplate", "options", "podConfig")
+
+    if result.Restrictions.Hide {
+        errs = append(errs, field.Forbidden(podPath, fmt.Sprintf("not allowed: pod config option %q is hidden", podConfigID)))
+    }
+
+    if result.Restrictions.Deny {
+        msg := fmt.Sprintf("not allowed: pod config option %q is restricted", podConfigID)
+        if result.Restrictions.DenyMessage != nil && result.Restrictions.DenyMessage.Text != "" {
+            msg = fmt.Sprintf("%s: %s", msg, result.Restrictions.DenyMessage.Text)
+        }
+        errs = append(errs, field.Forbidden(podPath, msg))
+    }
+
+    return errs
 }
 
 // findImageConfigValue returns the imageConfig value with the given id, or nil if not found.
