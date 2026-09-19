@@ -151,9 +151,7 @@ func (r *WorkspaceRepository) getWorkspaceModels(ctx context.Context, listOption
 
 func (r *WorkspaceRepository) CreateWorkspace(ctx context.Context, actor user.Info, workspaceCreate *models.WorkspaceCreate, namespace string) (*models.WorkspaceCreate, error) {
 	// get the WorkspaceKind referenced by this Workspace - required to evaluate its
-	// filterRules below. Any failure here (including the WorkspaceKind not existing)
-	// is a hard failure (root 500): we cannot evaluate filterRules without it, and a
-	// create request should always reference a real WorkspaceKind.
+	// filterRules below.
 	workspaceKind := &kubefloworgv1beta1.WorkspaceKind{}
 	if err := r.client.Get(ctx, client.ObjectKey{Name: workspaceCreate.Kind}, workspaceKind); err != nil {
 		return nil, err
