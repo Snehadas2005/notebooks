@@ -308,9 +308,7 @@ func (r *WorkspaceRepository) UpdateWorkspace(ctx context.Context, actor user.In
 }
 
 // resolveNamespaceLabels fetches the labels of the given namespace, used to evaluate
-// `matchNamespace` conditions in filterRules. Any failure here - including the
-// namespace not existing - is a hard failure (root 500): we cannot evaluate filterRules
-// without it.
+// `matchNamespace` conditions in filterRules.
 func (r *WorkspaceRepository) resolveNamespaceLabels(ctx context.Context, namespaceName string) (map[string]string, error) {
 	ns := &corev1.Namespace{}
 	if err := r.client.Get(ctx, client.ObjectKey{Name: namespace}, ns); err != nil {
