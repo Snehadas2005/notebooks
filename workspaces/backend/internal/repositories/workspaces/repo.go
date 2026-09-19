@@ -321,9 +321,11 @@ func (r *WorkspaceRepository) resolveNamespaceLabels(ctx context.Context, namesp
 }
 
 // enforceWorkspaceKindFilterRules evaluates the WorkspaceKind's WORKSPACE_KIND-scoped
-// filterRules against the target namespace's labels, and returns a
-// *WorkspaceKindRestrictedError (surfaced as an HTTP 403) if the WorkspaceKind itself
-// is denied for this namespace.
+// filterRules against the given namespace labels and returns a WorkspaceKindRestrictedError
+// if the WorkspaceKind is hidden or denied for this namespace.
+//
+// If both Hide and Deny apply, Hide wins: a hidden WorkspaceKind should never leak the
+// admin-authored deny message to the client.
 //
 // TODO(#1206): this WORKSPACE_KIND-scope check came out of discussions after WORKSPACE_KIND-scope
 // engine support merged, but #1206 as written explicitly calls out IMAGE_CONFIG/POD_CONFIG-scoped `deny`.
