@@ -234,30 +234,42 @@ func (r *WorkspaceRepository) UpdateWorkspace(ctx context.Context, actor user.In
 		return nil, err
 	}
 
-	// reject the request (403) if the WorkspaceKind itself is denied by
-	// a WORKSPACE_KIND-scoped filterRule for this namespace. Evaluated on every update,
-	// not just when imageConfig/podConfig changes, since the WorkspaceKind is fixed for
-	// the lifetime of the Workspace and isn't part of what's "changing" here.
-	if err := r.enforceWorkspaceKindFilterRules(ctx, namespace, workspaceKind, "update"); err != nil {
-		return nil, err
-	}
+    // resolve the target namespace's labels once, up front, so both filterRule
+    // evaluation passes below can reuse them without a second Namespace fetch.
+    namespaceLabels, err := r.resolveNamespaceLabels(ctx, namespace)
+    if err != nil {
+        return nil, err
+    }
 
-	// only re-evaluate filterRules for an option that is actually changing - an
-	// unrelated update should not be blocked by a rule that started denying an option
-	// the workspace already has.
-	newOptions := workspaceUpdate.PodTemplate.Options
-	currentOptions := workspace.Spec.PodTemplate.Options
-	imageConfigChanged := newOptions.ImageConfig != currentOptions.ImageConfig
-	podConfigChanged := newOptions.PodConfig != currentOptions.PodConfig
+    // check if a WORKSPACE_KIND-scoped filterRule now denies this
+    // WorkspaceKind for the namespace. Filter rules and namespace labels
+    // can change over the lifetime of a workspace; when they do, an existing
+    // workspace whose WorkspaceKind is no longer permitted here is
+    // blocked from further mutations regardless of what the caller is trying
+    // to change.
+    if err := r.enforceWorkspaceKindFilterRules(workspaceKind, namespaceLabels, wsMutationTypeUpdate); err != nil {
+        return nil, err
+    }
 
-	if imageConfigChanged || podConfigChanged {
-		filterErrs, err := r.enforceOptionFilterRules(ctx, namespace, workspaceKind, newOptions, imageConfigChanged, podConfigChanged)
-		if err != nil {
-			return nil, err
-		}
-		if len(filterErrs) > 0 {
-			return nil, helper.NewInternalValidationError(filterErrs)
-		}
+    // only re-evaluate filterRules for an option that is actually changing - an
+    // unrelated update should not be blocked by a rule that started denying an
+    // option the workspace already has.
+    newOptions := workspaceUpdate.PodTemplate.Options
+    currentOptions := workspace.Spec.PodTemplate.Options
+
+    var filterErrs field.ErrorList
+    if newOptions.ImageConfig != currentOptions.ImageConfig {
+        filterErrs = append(filterErrs, r.enforceImageConfigFilterRule(workspaceKind, namespaceLabels, newOptions)...)
+    }
+    
+    if newOptions.PodConfig != currentOptions.PodConfig {
+        filterErrs = append(filterErrs, r.enforcePodConfigFilterRule(workspaceKind, namespaceLabels, newOptions)...)
+    }
+    
+    if len(filterErrs) > 0 {
+        return nil, helper.NewInternalValidationError(filterErrs)
+    }
+
 	}
 
 	// apply update model to workspace object
